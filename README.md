@@ -44,6 +44,17 @@ npm run analyze
 
 - `POST /events` … 単体イベント or 配列（最大20件）。`Content-Type: text/plain`（`sendBeacon` がプリフライトを避けるため）でも `application/json` でも可。成功時 `204`、不正 `400`。
 - `GET /health` … `{"ok":true}`
+- `GET /admin` … 管理ダッシュボード（Basic認証）。下記参照。
+
+## 管理ダッシュボード `/admin`（管理者専用）
+
+記事別アクセス・カテゴリ別アクセス・ゼロ件検索・「検索されたのにクリックされない語」・記事別フィードバックを、直近30日でHTML表示する。
+
+- **Basic 認証**で保護（`ADMIN_USER` / `ADMIN_PASS`）。未設定なら `/admin` は無効（503）。
+- `noindex` ＋ `Cache-Control: no-store`。ブラウザでURLを開くとログインを求められる。
+- ローカル: `http://localhost:3001/admin`（`.env` の `ADMIN_USER=admin` / `ADMIN_PASS=changeme_local`）。
+- 一般ユーザーは静的サイトから辿れない別オリジン＋認証保護なので、事実上到達不可。
+- カテゴリ別は、閲覧イベントの `meta.category`（記事ページが付与）を集計する。
 
 ## サイト（フロント）との接続
 

@@ -4,6 +4,7 @@ import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import { z } from 'zod';
 import { pool, ensureSchema } from './db.js';
+import { registerAdmin } from './admin.js';
 
 const PORT = Number(process.env.PORT ?? 3001);
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? 'http://localhost:4322')
@@ -80,6 +81,9 @@ app.post('/events', async (req, reply) => {
   reply.code(204);
   return null;
 });
+
+// 管理ダッシュボード（Basic認証・/admin）
+registerAdmin(app);
 
 await ensureSchema();
 await app.listen({ port: PORT, host: '0.0.0.0' });

@@ -22,6 +22,8 @@ services:
       DATABASE_URL: postgres://telemetry:${POSTGRES_PASSWORD:-telemetry_local}@db:5432/telemetry
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:4322}
       PORT: "3001"
+      ADMIN_USER: ${ADMIN_USER:-}
+      ADMIN_PASS: ${ADMIN_PASS:-}
     ports:
       - "${API_PORT:-3001}:3001"
     depends_on:

@@ -1,0 +1,29 @@
+{
+  "name": "support-faq-telemetry",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "description": "検索・クリック・フィードバックのログ収集API（Fastify + PostgreSQL）。更新優先度づけの一次データを貯める。",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "analyze": "tsx src/analyze.ts",
+    "recent": "node check-recent.mjs"
+  },
+  "volta": {
+    "node": "22.23.2"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.3.0",
+    "@fastify/rate-limit": "^11.2.0",
+    "fastify": "^5.12.1",
+    "pg": "^8.23.0",
+    "tsx": "^4.23.13",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "^26.4.1",
+    "@types/pg": "^8.23.1",
+    "typescript": "^7.0.2"
+  }
+}

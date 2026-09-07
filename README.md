@@ -1,5 +1,9 @@
 # telemetry — 検索・クリック・フィードバックのログ収集
 
+> **将来この配下は別リポジトリ `support-telemetry` に分離予定**（「リポジトリはサーバーの数だけ」）。
+> 切り出しは `scripts/split-telemetry.sh`、全体の移行手順は [`../MIGRATION.md`](../MIGRATION.md) を参照。
+> 当面はサーバー費用ゼロ・ローカル完結で開発するため、本APIのデプロイは行いません。
+
 FAQサイトの「更新優先度づけ」に使う一次データ（検索語・ゼロ件検索・クリック・役立ち度）を貯める小さなAPI。
 **Fastify + PostgreSQL**。常時起動は小箱1台（AWS Lightsail 想定）で、サイト本体（静的配信）とは独立。
 

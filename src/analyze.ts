@@ -79,4 +79,15 @@ await report(
     limit 20`,
 );
 
+await report(
+  '「いいえ」の理由 内訳（直近30日）＝ 何を直すべきか',
+  `select meta->>'reason' as 理由, count(*)::int as 回数
+     from events
+    where type = 'feedback' and helpful is false and coalesce(meta->>'reason', '') <> ''
+      and created_at > now() - interval '30 days'
+    group by 理由
+    order by 回数 desc
+    limit 30`,
+);
+
 await pool.end();

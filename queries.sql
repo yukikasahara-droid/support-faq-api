@@ -46,7 +46,27 @@ group by article
 having count(*) filter (where helpful is false) > 0
 order by no desc limit 20;
 
--- 6) 日次のイベント数（動いているかの確認）
+-- 6) 「いいえ」の理由 内訳 ＝ 何を直すべきか（reason は meta に格納）
+select meta->>'reason' as reason, count(*) as n
+from events
+where type = 'feedback' and helpful is false and coalesce(meta->>'reason','') <> ''
+  and created_at > now() - interval '30 days'
+group by reason order by n desc limit 30;
+
+-- 7) 訪問先ページ種別 ＝ サイトのどこに来ているか（path で分類）
+select case
+         when path like '%/faq/%'      then '記事'
+         when path like '%/category/%' then 'カテゴリ'
+         when path like '%/search%'    then '検索'
+         when path like '%/404%'       then 'その他'
+         else 'トップ'
+       end as kind,
+       count(*) as n
+from events
+where type = 'view' and created_at > now() - interval '30 days'
+group by kind order by n desc;
+
+-- 8) 日次のイベント数（動いているかの確認）
 select date_trunc('day', created_at) as day, type, count(*) as n
 from events
 group by day, type order by day desc, type;

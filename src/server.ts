@@ -22,6 +22,9 @@ const EventSchema = z.object({
   article: z.string().max(200).optional(),
   position: z.number().int().min(0).max(100_000).optional(),
   helpful: z.boolean().optional(),
+  // feedback「いいえ」の理由（固定プリセットの短い文言）。専用列は作らず meta に格納する。
+  // ※自由記述は受け付けない（個人情報混入を避けるため、フロント側もプリセット選択のみ）。
+  reason: z.string().max(100).optional(),
   path: z.string().max(300).optional(),
   meta: z.record(z.string(), z.unknown()).optional(),
 });
@@ -57,6 +60,8 @@ app.post('/events', async (req, reply) => {
   const client = await pool.connect();
   try {
     for (const e of events) {
+      // reason は専用列を持たず meta に畳み込む（スキーマ変更不要／JSONBで拡張）。
+      const meta = { ...(e.meta ?? {}), ...(e.reason ? { reason: e.reason } : {}) };
       await client.query(
         `insert into events
            (type, session_id, query, result_count, zero_result, article, position, helpful, path, meta)
@@ -71,7 +76,7 @@ app.post('/events', async (req, reply) => {
           e.position ?? null,
           e.helpful ?? null,
           e.path ?? null,
-          JSON.stringify(e.meta ?? {}),
+          JSON.stringify(meta),
         ],
       );
     }

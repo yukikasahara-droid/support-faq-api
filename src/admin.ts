@@ -53,20 +53,26 @@ function table(headers: string[], rows: string[][], empty = 'データなし'): 
 
 async function renderDashboard(): Promise<string> {
   const since = "created_at > now() - interval '30 days'";
-  const [views, cats, feedback, zero, top, noclick, totalsRows] = await Promise.all([
+  const [views, cats, feedback, zero, top, noclick, totalsRows, reasons, pageKinds] = await Promise.all([
     q<{ article: string; n: number }>(`select article, count(*)::int n from events where type='view' and article is not null and ${since} group by article order by n desc limit 40`),
-    q<{ cat: string; n: number }>(`select coalesce(meta->>'category','(不明)') cat, count(*)::int n from events where type='view' and ${since} group by cat order by n desc`),
+    q<{ cat: string; n: number }>(`select coalesce(meta->>'category','(不明)') cat, count(*)::int n from events where type='view' and meta->>'category' is not null and ${since} group by cat order by n desc`),
     q<{ article: string; yes: number; no: number }>(`select article, count(*) filter (where helpful)::int yes, count(*) filter (where helpful is false)::int no from events where type='feedback' and article is not null group by article order by no desc, yes desc limit 40`),
     q<{ query: string; n: number }>(`select query, count(*)::int n from events where type='search' and zero_result and coalesce(query,'')<>'' and ${since} group by query order by n desc limit 25`),
     q<{ query: string; n: number }>(`select query, count(*)::int n from events where type='search' and coalesce(query,'')<>'' and ${since} group by query order by n desc limit 25`),
     q<{ query: string; n: number }>(`with s as (select distinct session_id, query from events where type='search' and coalesce(query,'')<>'' and coalesce(result_count,0)>0 and ${since}), c as (select distinct session_id, query from events where type='result_click') select s.query, count(*)::int n from s left join c on c.session_id=s.session_id and c.query=s.query where c.query is null group by s.query order by n desc limit 25`),
-    q<{ views: number; searches: number; zero: number; feedback: number }>(`select count(*) filter (where type='view')::int views, count(*) filter (where type='search')::int searches, count(*) filter (where type='search' and zero_result)::int zero, count(*) filter (where type='feedback')::int feedback from events where ${since}`),
+    q<{ views: number; sessions: number; searches: number; zero: number; feedback: number }>(`select count(*) filter (where type='view')::int views, count(distinct session_id) filter (where type='view')::int sessions, count(*) filter (where type='search')::int searches, count(*) filter (where type='search' and zero_result)::int zero, count(*) filter (where type='feedback')::int feedback from events where ${since}`),
+    // 「いいえ」の理由内訳（reason は meta に格納）＝ どこが不十分か（記事改善のヒント）
+    q<{ reason: string; n: number }>(`select meta->>'reason' reason, count(*)::int n from events where type='feedback' and helpful is false and coalesce(meta->>'reason','')<>'' and ${since} group by reason order by n desc limit 25`),
+    // 訪問先ページ種別（path で分類）＝ サイトのどこに来ているか
+    q<{ kind: string; n: number }>(`select case when path like '%/faq/%' then '記事' when path like '%/category/%' then 'カテゴリ' when path like '%/search%' then '検索' when path like '%/404%' then 'その他' else 'トップ' end kind, count(*)::int n from events where type='view' and ${since} group by kind order by n desc`),
   ]);
 
-  const totals = totalsRows[0] ?? { views: 0, searches: 0, zero: 0, feedback: 0 };
+  const totals = totalsRows[0] ?? { views: 0, sessions: 0, searches: 0, zero: 0, feedback: 0 };
   const totalViews = views.reduce((s, r) => s + r.n, 0);
   const maxView = Math.max(1, ...views.map((r) => r.n));
   const maxCat = Math.max(1, ...cats.map((r) => r.n));
+  const maxKind = Math.max(1, ...pageKinds.map((r) => r.n));
+  const maxReason = Math.max(1, ...reasons.map((r) => r.n));
 
   const kpi = (label: string, value: number): string =>
     `<div class="kpi"><div class="kpi__v">${value.toLocaleString()}</div><div class="kpi__l">${label}</div></div>`;
@@ -76,6 +82,8 @@ async function renderDashboard(): Promise<string> {
     return [esc(r.article), String(r.n), `${bar(r.n, maxView)} <span class="pct">${pct}%</span>`];
   });
   const catRows = cats.map((r) => [esc(r.cat), String(r.n), bar(r.n, maxCat)]);
+  const kindRows = pageKinds.map((r) => [esc(r.kind), String(r.n), bar(r.n, maxKind)]);
+  const reasonRows = reasons.map((r) => [esc(r.reason), String(r.n), bar(r.n, maxReason)]);
   const fbRows = feedback.map((r) => {
     const total = r.yes + r.no;
     const rate = total > 0 ? Math.round((r.yes / total) * 100) : 0;
@@ -122,17 +130,24 @@ async function renderDashboard(): Promise<string> {
   <p class="sub">直近30日の集計（${now} 時点）・管理者専用</p>
 
   <div class="kpis">
-    ${kpi('記事閲覧', totals.views)}${kpi('検索', totals.searches)}${kpi('ゼロ件検索', totals.zero)}${kpi('評価', totals.feedback)}
+    ${kpi('訪問（セッション）', totals.sessions)}${kpi('ページ閲覧（PV）', totals.views)}${kpi('検索', totals.searches)}${kpi('評価', totals.feedback)}
   </div>
 
   <section>
+    <h2>訪問先ページ種別</h2>
+    <p class="hint">サイトのどのページに来ているか（全ページの閲覧を種別で集計）。</p>
+    ${table(['ページ種別', '閲覧', ''], kindRows)}
+  </section>
+
+  <section>
     <h2>記事別アクセス</h2>
-    <p class="hint">よく見られている記事（アクセス率＝全閲覧に占める割合）。</p>
+    <p class="hint">よく見られている記事（アクセス率＝記事閲覧に占める割合）。</p>
     ${table(['記事', '閲覧', 'アクセス率'], viewRows)}
   </section>
 
   <section>
     <h2>カテゴリ別アクセス</h2>
+    <p class="hint">記事ページ閲覧に付与された <code>meta.category</code> を集計。</p>
     ${table(['カテゴリ', '閲覧', ''], catRows)}
   </section>
 
@@ -151,15 +166,21 @@ async function renderDashboard(): Promise<string> {
 
   <div class="cols">
     <section>
-      <h2>検索ワード 上位</h2>
-      ${table(['検索ワード', '回数'], topRows)}
-    </section>
-    <section>
       <h2>記事別フィードバック</h2>
       <p class="hint">「いいえ」が多い記事＝改訂候補。</p>
       ${table(['記事', 'はい', 'いいえ', '満足率'], fbRows)}
     </section>
+    <section>
+      <h2>「いいえ」の理由</h2>
+      <p class="hint">なぜ役に立たなかったか（何を直すべきかのヒント）。</p>
+      ${table(['理由', '回数', ''], reasonRows)}
+    </section>
   </div>
+
+  <section>
+    <h2>検索ワード 上位</h2>
+    ${table(['検索ワード', '回数'], topRows)}
+  </section>
 
   <p class="note">※ このページは Basic 認証で保護され、検索エンジンには載りません（noindex）。データは匿名の計測ログに基づきます。</p>
 </div></body></html>`;

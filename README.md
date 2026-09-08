@@ -1,8 +1,7 @@
-# telemetry — 検索・クリック・フィードバックのログ収集
+# support-faq-api — 検索・クリック・フィードバックのログ収集
 
-> **将来この配下は別リポジトリ `support-telemetry` に分離予定**（「リポジトリはサーバーの数だけ」）。
-> 切り出しは `scripts/split-telemetry.sh`、全体の移行手順は [`../MIGRATION.md`](../MIGRATION.md) を参照。
-> 当面はサーバー費用ゼロ・ローカル完結で開発するため、本APIのデプロイは行いません。
+> FAQサイト（`support-faq`）本体からは独立した**別リポジトリ**（「リポジトリはサーバーの数だけ」の方針）。
+> サイトは静的配信のまま、このAPIは常時起動の小箱1台で動かす想定。デプロイはサーバー管理者が行う。
 
 FAQサイトの「更新優先度づけ」に使う一次データ（検索語・ゼロ件検索・クリック・役立ち度）を貯める小さなAPI。
 **Fastify + PostgreSQL**。常時起動は小箱1台（AWS Lightsail 想定）で、サイト本体（静的配信）とは独立。
@@ -15,10 +14,12 @@ FAQサイトの「更新優先度づけ」に使う一次データ（検索語�
 |---|---|---|
 | `search` | `query` / `result_count` / `zero_result` | 何が検索されているか、**ゼロ件＝不足コンテンツ** |
 | `result_click` | `query` / `article` / `position` | 検索の当たり/外れ、順位の妥当性 |
-| `view` | `article` | よく見られる記事・導線 |
-| `feedback` | `article` / `helpful` | 記事の質（改訂すべき記事） |
+| `view` | `path` / `article` / `meta.category` | **サイト全体の訪問**（トップ/カテゴリ/検索/記事）と記事別・カテゴリ別の閲覧 |
+| `feedback` | `article` / `helpful` / `reason` | 記事の質（改訂すべき記事）と、**なぜ役に立たなかったか** |
 
-将来の追加項目は `meta`(JSONB) に入れればスキーマ変更不要。イベント種別を増やすときは `src/server.ts` の enum に足す。
+- `view` はサイトの全ページから送られる（記事ページは `article` と `meta.category` を付与）。`path` で訪問先ページ種別を集計できる。
+- `feedback` の `reason` は「いいえ」時の**固定プリセットの理由**（例:「手順どおりで解決しない」）。個人情報混入を避けるため**自由記述は受け付けない**。`reason` は専用列を作らず `meta` に格納する。
+- 将来の追加項目は `meta`(JSONB) に入れればスキーマ変更不要。イベント種別を増やすときは `src/server.ts` の enum に足す。
 
 ## ローカルで動かす
 
@@ -52,7 +53,7 @@ npm run analyze
 
 ## 管理ダッシュボード `/admin`（管理者専用）
 
-記事別アクセス・カテゴリ別アクセス・ゼロ件検索・「検索されたのにクリックされない語」・記事別フィードバックを、直近30日でHTML表示する。
+訪問（セッション）・ページ閲覧・訪問先ページ種別・記事別/カテゴリ別アクセス・ゼロ件検索・「検索されたのにクリックされない語」・記事別フィードバック・「いいえ」の理由内訳を、直近30日でHTML表示する。
 
 - **Basic 認証**で保護（`ADMIN_USER` / `ADMIN_PASS`）。未設定なら `/admin` は無効（503）。
 - `noindex` ＋ `Cache-Control: no-store`。ブラウザでURLを開くとログインを求められる。
@@ -90,7 +91,7 @@ PUBLIC_TELEMETRY_ENDPOINT=https://telemetry.example.com/events
 
 1. Lightsail インスタンス作成（Ubuntu, $5/月）。
 2. Docker / Docker Compose を導入。
-3. この `telemetry/` を配置し、`.env` を本番値に：
+3. このリポジトリを配置し、`.env` を本番値に：
    - `POSTGRES_PASSWORD` を強固な値に
    - `ALLOWED_ORIGINS=https://（本番サイトのURL）`
 4. `docker compose up -d --wait` で起動。データは名前付きボリューム `pgdata` に永続化。
